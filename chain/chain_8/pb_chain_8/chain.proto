@@ -1,0 +1,19 @@
+// This proto contains gRPC definition for chain_x service
+syntax = "proto3";
+
+package chain_8;
+
+option go_package = "github.com/hanapedia/microservice-topologies/chain/chain_8/pb_chain_8";
+
+service Chain_8 {
+  rpc GetIds(Req) returns (Res); 
+  }
+
+message Res {
+    repeated int32 ids = 1;
+  }
+
+message Req {
+    repeated int32 ids = 1;
+  }
+

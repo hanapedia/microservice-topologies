@@ -1,0 +1,92 @@
+{% set i = chain_x | int %}
+package main
+
+import (
+	"context"
+	"log"
+	"net"
+
+	"{{ go.module_base_path }}/chain_{{ i }}/connections/mongo"
+	pb "{{ go.module_base_path }}/chain_{{ i }}/pb_chain_{{ i }}"
+{% if count > i %}
+	pbc "{{ go.module_base_path }}/chain_{{ i }}/pb_chain_{{ i + 1 }}"
+{% endif %}
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+)
+
+type chain_{{ i }}Server struct {
+	pb.UnimplementedChain_{{ i }}Server
+}
+
+var mongoConnection *mongo.Mongo
+
+{% if count > i %}
+var nextChain pbc.Chain_{{ i + 1 }}Client
+{% endif %}
+
+func (s chain_{{ i }}Server) GetIds(ctx context.Context, req *pb.Req) (*pb.Res, error) {
+  newId, err := mongoConnection.GetItem(req.Ids[len(req.Ids)-1])
+  if err != nil {
+    log.Fatalf("Failed to retrieve item: %v", err)
+  }
+	returnArr := req.Ids
+  returnArr = append(returnArr, newId)
+	// Implement db read logic
+  {% if count > i %}
+  next := pbc.Req {
+    Ids: returnArr,
+  }
+
+  nextRes, err := nextChain.GetIds(context.Background(), &next)
+  if err != nil {
+    log.Fatalf("Failed to retrieve ids: %v", err)
+  }
+
+  res := pb.Res {
+    Ids: nextRes.Ids,
+  }
+  {% else %}
+  res := pb.Res {
+    Ids: returnArr,
+  }
+  {% endif %}
+
+	return &res, nil
+}
+
+func newServer() chain_{{ i }}Server {
+  return chain_{{ i }}Server{}
+}
+
+func main() {
+  lis, err := net.Listen("tcp", "localhost:{{ i + 3000}}")
+  if err != nil {
+    log.Fatalf("failed to listen: %v", err)
+  }
+  var opts []grpc.ServerOption
+  grpcServer := grpc.NewServer(opts...)
+  pb.RegisterChain_{{ i }}Server(grpcServer, newServer())
+
+  mongoConnection, err = mongo.InitMongo("mongodb://localhost:27017", "chain", "chain1")
+  if err != nil {
+    log.Fatalf("failed to connect to mongodb: %v", err)
+  }
+  defer mongoConnection.Disconnect()
+
+  var optsClient []grpc.DialOption
+  optsClient = append(optsClient, grpc.WithTransportCredentials(insecure.NewCredentials()))
+
+  {% if count > i %}
+  conn, err := grpc.Dial("localhost:{{ i + 3001 }}", optsClient...)
+  if err != nil {
+    log.Printf("Cannot establish connection with the server: %v", err)
+  }
+  defer conn.Close()
+
+  nextChain = pbc.NewChain_{{ i + 1 }}Client(conn)
+  {% endif %}
+
+  grpcServer.Serve(lis)
+}

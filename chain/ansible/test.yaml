@@ -1,0 +1,30 @@
+# vim: set filetype=yaml.ansible :
+---
+- name: Generate code for chain microservice topology
+  hosts: localhost
+  vars:
+    count: 10
+  tasks:
+    - name: Copy files
+      ansible.builtin.copy:
+        src: "../chain_{{ item | int + 1 }}/pb_chain_{{ item | int + 1 }}"
+        dest: "../chain_{{ item }}/pb_chain_{{ item }}"
+        mode: "1777"
+      loop:
+        - "1"
+
+    # - name: Create directories for each microservice
+    #   ansible.builtin.file:
+    #     path: "../chain_{{ item }}"
+    #     state: absent
+    #   with_sequence: "start=4 count={{ count }} format=%s"
+
+    # - name: Generate go files
+    #   ansible.builtin.template:
+    #     src: ./templates/main.go.j2
+    #     dest: "../chain_{{ item }}/main.go"
+    #     mode: "1777"
+    #   vars:
+    #     chain_x: "{{ item }}"
+    #   with_sequence: "start=4 count={{ count }} format=%s"
+    #
