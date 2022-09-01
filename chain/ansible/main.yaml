@@ -84,7 +84,7 @@
             mode: "1777"
           with_sequence: "start=1 count={{ count | int - 1 }} format=%s"
 
-    - name: Fetch go modules and run
+    - name: Fetch go modules # and run
       block:
         - name: Tidy go modules
           ansible.builtin.command: "go mod tidy"
@@ -93,9 +93,17 @@
             creates: go.sum
           with_sequence: "start=1 count={{ count }} format=%s"
 
-        - name: Run go programs
-          ansible.builtin.shell: "(go run main.go > /dev/null 2>&1 &)"
-          args:
-            chdir: "../chain_{{ item }}"
-          changed_when: true
-          with_sequence: "start=1 count={{ count }} format=%s"
+        # - name: Run go programs
+        #   ansible.builtin.shell: "(go run main.go > /dev/null 2>&1 &)"
+        #   args:
+        #     chdir: "../chain_{{ item }}"
+        #   changed_when: true
+        #   with_sequence: "start=1 count={{ count }} format=%s"
+
+    - name: Generate docker compose file and build images # and run
+      block:
+        - name: Generate docker-compose.yaml
+          ansible.builtin.template:
+            src: ./templates/docker-compose.yaml.j2
+            dest: ../docker-compose.yaml
+            mode: "1777"
