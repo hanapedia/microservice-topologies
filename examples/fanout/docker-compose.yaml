@@ -1,0 +1,83 @@
+version: '3'
+services: 
+  mongo:
+    container_name: database_fanout
+    image: mongo:4
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+    volumes:
+      - ./db/data/db:/data/db
+      - ./db/scripts/:/docker-entrypoint-initdb.d/
+    ports:
+      - 27017:27017
+
+  mongo_express:
+    image: mongo-express
+    restart: always
+    ports:
+      - 8081:8081
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: root
+      ME_CONFIG_MONGODB_ADMINPASSWORD: example
+      ME_CONFIG_MONGODB_SERVER: mongo
+    depends_on:
+      - mongo
+
+  fanout_0:
+    image: topology/fanout_0
+    build:
+      context: fanout_0
+      dockerfile: ../go.Dockerfile
+    environment:
+      LISTEN_PORT: 3001
+      FANOUT_CLIENT_1_ADDRESS: fanout_1:3002
+      FANOUT_CLIENT_2_ADDRESS: fanout_2:3003
+      FANOUT_CLIENT_3_ADDRESS: fanout_3:3004
+    ports:
+      - 3001:3001
+    restart: always
+    
+  fanout_1:
+    image: topology/fanout_1
+    build:
+      context: fanout_1
+      dockerfile: ../go.Dockerfile
+    environment:
+      LISTEN_PORT: 3002
+      DB_ADDRESS: mongodb://mongo:27017
+      DB_NAME: fanout
+    ports:
+      - 3002:3002
+    restart: always
+    depends_on:
+      - mongo
+  fanout_2:
+    image: topology/fanout_2
+    build:
+      context: fanout_2
+      dockerfile: ../go.Dockerfile
+    environment:
+      LISTEN_PORT: 3003
+      DB_ADDRESS: mongodb://mongo:27017
+      DB_NAME: fanout
+    ports:
+      - 3003:3003
+    restart: always
+    depends_on:
+      - mongo
+  fanout_3:
+    image: topology/fanout_3
+    build:
+      context: fanout_3
+      dockerfile: ../go.Dockerfile
+    environment:
+      LISTEN_PORT: 3004
+      DB_ADDRESS: mongodb://mongo:27017
+      DB_NAME: fanout
+    ports:
+      - 3004:3004
+    restart: always
+    depends_on:
+      - mongo
+

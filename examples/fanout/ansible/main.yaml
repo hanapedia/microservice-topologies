@@ -1,0 +1,125 @@
+# vim: set filetype=yaml.ansible :
+---
+- name: Generate code for fanout microservice topology
+  hosts: localhost
+  tasks:
+    - name: Prepare directory tree and initialize go mod
+      block:
+        - name: Create directories for leaves and branch
+          ansible.builtin.file:
+            path: "../fanout_{{ item }}"
+            state: directory
+            mode: "1777"
+          with_sequence: "start=0 count={{ count | int + 1 }} format=%s"
+
+        - name: Create directories for protocol buffer
+          ansible.builtin.file:
+            path: "../fanout_{{ item }}/pb_fanout_{{ item }}"
+            state: directory
+            mode: "1777"
+          with_sequence: "start=0 count={{ count | int + 1 }} format=%s"
+
+        - name: Create directories for mongo code
+          ansible.builtin.file:
+            path: "../fanout_{{ item }}/connections"
+            state: directory
+            mode: "1777"
+          with_sequence: "start=1 count={{ count }} format=%s"
+
+        - name: Initialize go modules
+          ansible.builtin.command: "go mod init {{ go.module_base_path }}/fanout_{{ item }}"
+          args:
+            chdir: "../fanout_{{ item }}"
+            creates: go.mod
+          with_sequence: "start=0 count={{ count | int + 1 }} format=%s"
+
+    - name: Prepare source code files
+      block:
+        - name: Generate proto files from template
+          ansible.builtin.template:
+            src: ./templates/fanout.proto.j2
+            dest: "../fanout_{{ item }}/pb_fanout_{{ item }}/fanout.proto"
+            mode: "1777"
+          vars:
+            fanout_x: "{{ item }}"
+          with_sequence: "start=0 count={{ count | int + 1 }} format=%s"
+
+        - name: Generate go files
+          ansible.builtin.template:
+            src: ./templates/branch.go.j2
+            dest: "../fanout_0/main.go"
+            mode: "1777"
+
+        - name: Generate go files
+          ansible.builtin.template:
+            src: ./templates/leaf.go.j2
+            dest: "../fanout_{{ item }}/main.go"
+            mode: "1777"
+          vars:
+            fanout_x: "{{ item }}"
+          with_sequence: "start=1 count={{ count }} format=%s"
+
+        - name: copy mongo go files
+          ansible.builtin.copy:
+            src: ./files/connections/
+            dest: "../fanout_{{ item }}/connections/"
+            mode: "1777"
+          with_sequence: "start=1 count={{ count }} format=%s"
+
+    - name: Generate and copy grpc code
+      block:
+        - name: Run protoc to generate grpc code
+          ansible.builtin.command:
+          args:
+            cmd: "protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative pb_fanout_{{ item }}/fanout.proto"
+            chdir: "../fanout_{{ item }}"
+            creates: "../fanout_{{ item }}/fanout.pb.go"
+          with_sequence: "start=0 count={{ count | int + 1 }} format=%s"
+
+        - name: Ensure that directory for external grpc files exists
+          ansible.builtin.file:
+            path: "../fanout_0/pb_fanout_{{ item }}"
+            state: directory
+            mode: "1777"
+          with_sequence: "start=1 count={{ count | int }} format=%s"
+
+        - name: Copy generated grpc files
+          ansible.builtin.copy:
+            src: "../fanout_{{ item }}/pb_fanout_{{ item }}/"
+            dest: "../fanout_0/pb_fanout_{{ item }}/"
+            mode: "1777"
+          with_sequence: "start=1 count={{ count }} format=%s"
+
+    - name: Fetch go modules # and run
+      block:
+        - name: Tidy go modules
+          ansible.builtin.command: "go mod tidy"
+          args:
+            chdir: "../fanout_{{ item }}"
+            creates: go.sum
+          with_sequence: "start=0 count={{ count | int + 1 }} format=%s"
+
+        # - name: Run go programs
+        #   ansible.builtin.shell: "(go run main.go > /dev/null 2>&1 &)"
+        #   args:
+        #     chdir: "../fanout_{{ item }}"
+        #   changed_when: true
+        #   with_sequence: "start=1 count={{ count }} format=%s"
+
+    - name: Generate mongo script for initializing data
+      block:
+        - name: Generate mongoScript.js
+          ansible.builtin.template:
+            src: ./templates/mongoScript.js.j2
+            dest: ../db/scripts/mongoScript.js
+            mode: "1777"
+          vars:
+            db_name: fanout
+
+    - name: Generate docker compose file and build images # and run
+      block:
+        - name: Generate docker-compose.yaml
+          ansible.builtin.template:
+            src: ./templates/docker-compose.yaml.j2
+            dest: ../docker-compose.yaml
+            mode: "1777"

@@ -1,6 +1,0 @@
-# vim: set filetype=yaml.ansible :
----
-count: 10
-go:
-  module_base_path: github.com/hanapedia/microservice-topologies/chain
-base_port: 3000

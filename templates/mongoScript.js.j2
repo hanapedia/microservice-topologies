@@ -1,0 +1,11 @@
+db = new Mongo().getDB("{{ name }}")
+for (let i = 1; i <= {{ count }}; i++){
+  db.createCollection(`{{ type }}${i}`, { capped: false })
+  let entries = []
+  for (let i = 0; i <= 50; i++){
+    entries.push({key: i, value: Math.floor(Math.random() * 50)})
+  }
+    db[`{{ type }}${i}`].insertMany(entries)
+}
+
+

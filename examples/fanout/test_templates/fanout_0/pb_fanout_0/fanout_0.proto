@@ -1,0 +1,18 @@
+// This proto contains gRPC definition for chain_1 service
+syntax = "proto3";
+
+package fanout_0;
+
+option go_package = "github.com/hanapedia/microservice-topologies/fanout/fanout_0/pb_fanout_0";
+
+service Fanout_0 {
+  rpc GetIds(Req) returns (Res); 
+  }
+
+message Res {
+    repeated int32 ids = 1;
+  }
+
+message Req {
+    repeated int32 ids = 1;
+  }

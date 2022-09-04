@@ -1,0 +1,15 @@
+# vim: set filetype=yaml.ansible :
+---
+- name: Generate code for chain microservice topology
+  hosts: localhost
+  tasks:
+    - name: delete directories for each microservice
+      ansible.builtin.file:
+        path: "../chain_{{ item }}"
+        state: absent
+      with_sequence: "start=1 count={{ count }} format=%s"
+
+    - name: delete volume for database
+      ansible.builtin.file:
+        path: "../db/data/db"
+        state: absent
