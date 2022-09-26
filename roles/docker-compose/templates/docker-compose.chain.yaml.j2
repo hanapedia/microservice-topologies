@@ -1,0 +1,57 @@
+version: '3'
+services: 
+{% for i in range(1, count | int + 1) %}
+  chain_{{ i }}_db:
+    image: mongo:4
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+    volumes:
+      - ./db/chain_{{ i }}/data:/data/db
+      - ./db/chain_{{ i }}/scripts/:/docker-entrypoint-initdb.d/
+    ports:
+      - {{ base_db_port | int + i | int }}:27017
+
+  chain_{{ i }}_mongo_express:
+    image: mongo-express
+    restart: always
+    ports:
+      - {{ 8081 + i | int }}:8081
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: root
+      ME_CONFIG_MONGODB_ADMINPASSWORD: example
+      ME_CONFIG_MONGODB_SERVER: chain_{{ i }}_db
+    depends_on:
+      - chain_{{ i }}_db
+
+  chain_{{ i }}:
+    image: {{ name }}/chain_{{ i }}
+    build:
+      context: chain_{{ i }}
+      dockerfile: ../go.Dockerfile
+    environment:
+      LISTEN_PORT: {{ base_service_port }}
+      CHAIN_NEXT_ADDRESS: chain_{{ i | int + 1 }}:{{ base_service_port }}
+      DB_ADDRESS: mongodb://chain_{{ i }}_db:27017
+      DB_NAME: {{ name }}
+      COLLECTION_NAME: {{ type }}{{ i }}
+    ports:
+      - {{ i | int + base_service_port | int }}:{{ base_service_port }}
+    restart: always
+    depends_on:
+      - chain_{{ i }}_db
+
+{% endfor %}
+  gateway:
+    image: {{ name }}/gateway
+    build:
+      context: gateway
+      dockerfile: ../go.Dockerfile
+    environment:
+      LISTEN_PORT: {{ base_service_port }}
+      CHAIN_NEXT_ADDRESS: chain_1:{{ base_service_port }}
+    ports:
+      - {{ base_service_port }}:{{ base_service_port }}
+    restart: always
+    depends_on: 
+      - chain_1

@@ -1,0 +1,120 @@
+version: '3'
+services: 
+  chain_1_db:
+    container_name: chain_1_db
+    image: mongo:4
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+    volumes:
+      - ./db/data/chain_1_db:/data/db
+      - ./db/scripts/:/docker-entrypoint-initdb.d/
+    ports:
+      - 27017:27017
+
+  chain_1_mongo_express:
+    image: mongo-express
+    restart: always
+    ports:
+      - 8081:8081
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: root
+      ME_CONFIG_MONGODB_ADMINPASSWORD: example
+      ME_CONFIG_MONGODB_SERVER: chain_1_db
+    depends_on:
+      - chain_1_db
+
+  chain_2_db:
+    container_name: chain_2_db
+    image: mongo:4
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+    volumes:
+      - ./db/data/chain_2_db:/data/db
+      - ./db/scripts/:/docker-entrypoint-initdb.d/
+    ports:
+      - 27018:27017
+
+  chain_2_mongo_express:
+    image: mongo-express
+    restart: always
+    ports:
+      - 8082:8081
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: root
+      ME_CONFIG_MONGODB_ADMINPASSWORD: example
+      ME_CONFIG_MONGODB_SERVER: chain_2_db
+    depends_on:
+      - chain_2_db
+
+  chain_3_db:
+    container_name: chain_3_db
+    image: mongo:4
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+    volumes:
+      - ./db/data/chain_3_db:/data/db
+      - ./db/scripts/:/docker-entrypoint-initdb.d/
+    ports:
+      - 27019:27017
+
+  chain_3_mongo_express:
+    image: mongo-express
+    restart: always
+    ports:
+      - 8083:8081
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: root
+      ME_CONFIG_MONGODB_ADMINPASSWORD: example
+      ME_CONFIG_MONGODB_SERVER: chain_3_db
+    depends_on:
+      - chain_3_db
+
+  chain_1:
+    image: chain_example/chain_1
+    build:
+      context: chain_1
+      dockerfile: ../go.Dockerfile
+    environment:
+      LISTEN_PORT: 3001
+      CHAIN_NEXT_ADDRESS: chain_2:3002
+      DB_ADDRESS: mongodb://chain_1_db:27017
+      DB_NAME: chain_example
+    ports:
+      - 3001:3001
+    restart: always
+    depends_on:
+      - chain_1_db
+  chain_2:
+    image: chain_example/chain_2
+    build:
+      context: chain_2
+      dockerfile: ../go.Dockerfile
+    environment:
+      LISTEN_PORT: 3002
+      CHAIN_NEXT_ADDRESS: chain_3:3003
+      DB_ADDRESS: mongodb://chain_2_db:27017
+      DB_NAME: chain_example
+    ports:
+      - 3002:3002
+    restart: always
+    depends_on:
+      - chain_2_db
+  chain_3:
+    image: chain_example/chain_3
+    build:
+      context: chain_3
+      dockerfile: ../go.Dockerfile
+    environment:
+      LISTEN_PORT: 3003
+      CHAIN_NEXT_ADDRESS: chain_4:3004
+      DB_ADDRESS: mongodb://chain_3_db:27017
+      DB_NAME: chain_example
+    ports:
+      - 3003:3003
+    restart: always
+    depends_on:
+      - chain_3_db
+

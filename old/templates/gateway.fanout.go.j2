@@ -1,0 +1,85 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"net"
+	"os"
+
+	"github.com/gin-gonic/gin"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
+	pb "{{ go.module_base_path }}/{{ name }}/fanout_0/pb_fanout_0"
+{% for i in range(1, count | int + 1) %}
+	pb{{ i }} "{{ go.module_base_path }}/{{ name }}/fanout_0/pb_fanout_{{ i }}"
+{% endfor %}
+)
+
+type fanout_0Server struct {
+	pb.UnimplementedFanout_0Server
+}
+
+const (
+	ListenPort           = "3001"
+{% for i in range(1, count | int + 1) %}
+	FanoutClient{{ i }}Address = "localhost:{{ base_service_port + i | int + 1}}"
+{% endfor %}
+)
+
+{% for i in range(1, count | int + 1) %}
+var fanout_{{ i }}Client pb{{ i }}.Fanout_{{ i }}Client
+{% endfor %}
+
+func main() {
+	listenPort := ListenPort
+	if os.Getenv("LISTEN_PORT") != "" {
+		listenPort = os.Getenv("LISTEN_PORT")
+	}
+{% for i in range(1, count | int + 1) %}
+	fanoutClient{{ i }}Address := FanoutClient{{ i }}Address
+	if os.Getenv("FANOUT_CLIENT_{{ i }}_ADDRESS") != "" {
+		fanoutClient{{ i }}Address = os.Getenv("FANOUT_CLIENT_{{ i }}_ADDRESS")
+	}
+{% endfor %}
+
+	var optsClient []grpc.DialOption
+	optsClient = append(optsClient, grpc.WithTransportCredentials(insecure.NewCredentials()))
+
+{% for i in range(1, count | int + 1) %}
+	conn_{{ i }}, err := grpc.Dial(fanoutClient{{ i }}Address, optsClient...)
+	if err != nil {
+		log.Fatalf("Cannot establish connection with the server: %v", err)
+	}
+	log.Printf("Dialed and established connection with %v", fanoutClient{{ i }}Address)
+	defer conn_{{ i }}.Close()
+
+	fanout_{{ i }}Client = pb{{ i }}.NewFanout_{{ i }}Client(conn_{{ i }})
+
+{% endfor %}
+  router := gin.Default()
+  router.GET("/", handler)
+  router.Run(fmt.Sprintf(":%s", listenPort))
+}
+
+func handler(c *gin.Context) {
+  var res []int32
+
+{% for i in range(1, count | int + 1) %}
+  fanout_{{ i }}Req := new(pb{{ i }}.Req)
+  fanout_{{ i }}Req.Ids = res
+	fanout_{{ i }}Res, err := fanout_{{ i }}Client.GetIds(context.Background(), fanout_{{ i }}Req)
+	if err == nil {
+		res = fanout_{{ i }}Res.Ids
+	} else {
+    c.JSON(http.StatusBadRequest, gin.H{
+      "message": err,
+    })
+	}
+{% endfor %}
+
+  c.JSON(http.StatusBadRequest, gin.H{
+    "message": res,
+  })
+}

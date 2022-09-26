@@ -1,9 +1,11 @@
-# vim: set filetype=yaml.ansible :
 ---
 type: fanout # chain or fanout
-name: fanout_example
+name: test
 count: 3
 go:
   module_base_path: github.com/hanapedia/microservice-topologies
-base_port: 4000
+db:
+  single: true
+base_service_port: 4000
+base_db_port: 27017
 root: true

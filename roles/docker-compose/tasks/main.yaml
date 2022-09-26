@@ -1,0 +1,77 @@
+# vim: set filetype=yaml.ansible :
+---
+- name: Prepare docker-compose components
+  block:
+    - name: Create directory for database
+      ansible.builtin.file:
+        path: "./{{ name }}/db"
+        state: directory
+        mode: "1777"
+      with_sequence: "start=1 count={{ count }} format=%s"
+
+    - name: Copy dockerfile
+      ansible.builtin.copy:
+        src: go.Dockerfile
+        dest: "./{{ name }}/go.Dockerfile"
+        mode: "1777"
+
+    - name: Prepare db docker-compose for single db
+      when: db.single
+      block:
+        - name: Create directory for database volume
+          ansible.builtin.file:
+            path: "./{{ name }}/db/data"
+            state: directory
+            mode: "1777"
+          with_sequence: "start=1 count={{ count }} format=%s"
+
+        - name: Create directory for database init scripts
+          ansible.builtin.file:
+            path: "./{{ name }}/db/scripts"
+            state: directory
+            mode: "1777"
+          with_sequence: "start=1 count={{ count }} format=%s"
+
+        - name: Generate mongoScript.js
+          ansible.builtin.template:
+            src: mongoScript.single_db.js.j2
+            dest: ./{{ name }}/db/scripts/mongoScript.js
+            mode: "1777"
+
+        - name: Generate docker-compose.yaml
+          ansible.builtin.template:
+            src: docker-compose.{{ type }}.single_db.yaml.j2
+            dest: "./{{ name }}/docker-compose.yaml"
+            mode: "1777"
+
+    - name: Prepare docker-compose for multiple db setup
+      when: not db.single
+      block:
+        - name: Create directory for database volume
+          ansible.builtin.file:
+            path: "./{{ name }}/db/{{ type }}_{{ item }}/data"
+            state: directory
+            mode: "1777"
+          with_sequence: "start=1 count={{ count }} format=%s"
+
+        - name: Create directory for database init scripts
+          ansible.builtin.file:
+            path: "./{{ name }}/db/{{ type }}_{{ item }}/scripts"
+            state: directory
+            mode: "1777"
+          with_sequence: "start=1 count={{ count }} format=%s"
+
+        - name: Generate mongoScript.js
+          ansible.builtin.template:
+            src: mongoScript.js.j2
+            dest: ./{{ name }}/db/{{ type }}_{{ item }}/scripts/mongoScript.js
+            mode: "1777"
+          vars:
+            x: "{{ item }}"
+          with_sequence: "start=1 count={{ count }} format=%s"
+
+        - name: Generate docker-compose.yaml
+          ansible.builtin.template:
+            src: docker-compose.{{ type }}.yaml.j2
+            dest: "./{{ name }}/docker-compose.yaml"
+            mode: "1777"
