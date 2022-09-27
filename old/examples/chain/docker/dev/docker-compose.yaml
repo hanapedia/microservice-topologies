@@ -1,9 +1,0 @@
-version: '3'
-service:
-  chain_#:
-    build: .
-    volumes:
-      - ./chain_#/:/usr/src/app
-    tty: true
-
-
