@@ -1,0 +1,7 @@
+# vim: set filetype=yaml.ansible :
+---
+- name: Generate details file for the topology
+  ansible.builtin.template:
+    src: topology-details.md.j2
+    dest: "./generated/{{ name }}/topology-details.md"
+    mode: '1777'

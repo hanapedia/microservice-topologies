@@ -1,0 +1,7 @@
+# vim: set filetype=yaml.ansible :
+---
+- name: Generate kubernetes manifest for single db
+  ansible.builtin.template:
+    src: "kubernetes-manifest{{ '.single_db' if db.single else ''}}.yaml.j2"
+    dest: ./generated/{{ name }}/kubernetes-manifest.yaml
+    mode: "1777"

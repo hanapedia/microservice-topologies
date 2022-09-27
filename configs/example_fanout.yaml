@@ -1,8 +1,8 @@
 ---
 docker_hub_user: hiroki11hanada
-type: chain # chain or fanout
-name: test
-count: 1
+type: fanout # chain or fanout
+name: test-2
+count: 3
 go:
   module_base_path: github.com/hanapedia/microservice-topologies
 db:

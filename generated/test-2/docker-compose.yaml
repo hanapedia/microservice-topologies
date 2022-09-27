@@ -1,0 +1,123 @@
+version: '3'
+services: 
+  fanout-1-db:
+    image: hiroki11hanada/test-2-fanout-1-db
+    build:
+      context: ./src/fanout-1-db
+      dockerfile: ../mongo.Dockerfile
+    ports:
+      - 27018:27017
+
+  fanout_1_mongo_express:
+    image: mongo-express
+    restart: always
+    ports:
+      - 8082:8081
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+      ME_CONFIG_MONGODB_SERVER: fanout-1-db
+    depends_on:
+      - fanout-1-db
+
+  fanout-1:
+    image: hiroki11hanada/test-2-fanout-1
+    build:
+      context: ./src/fanout-1
+      dockerfile: ../go.Dockerfile
+    environment:
+      LISTEN_PORT: 4000
+      DB_ADDRESS: mongodb://fanout-1-db:27017
+      DB_NAME: test-2
+      COLLECTION_NAME: fanout1
+    ports:
+      - 4002:4000
+    restart: always
+    depends_on:
+      - fanout-1-db
+
+  fanout-2-db:
+    image: hiroki11hanada/test-2-fanout-2-db
+    build:
+      context: ./src/fanout-2-db
+      dockerfile: ../mongo.Dockerfile
+    ports:
+      - 27019:27017
+
+  fanout_2_mongo_express:
+    image: mongo-express
+    restart: always
+    ports:
+      - 8083:8081
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+      ME_CONFIG_MONGODB_SERVER: fanout-2-db
+    depends_on:
+      - fanout-2-db
+
+  fanout-2:
+    image: hiroki11hanada/test-2-fanout-2
+    build:
+      context: ./src/fanout-2
+      dockerfile: ../go.Dockerfile
+    environment:
+      LISTEN_PORT: 4000
+      DB_ADDRESS: mongodb://fanout-2-db:27017
+      DB_NAME: test-2
+      COLLECTION_NAME: fanout2
+    ports:
+      - 4003:4000
+    restart: always
+    depends_on:
+      - fanout-2-db
+
+  fanout-3-db:
+    image: hiroki11hanada/test-2-fanout-3-db
+    build:
+      context: ./src/fanout-3-db
+      dockerfile: ../mongo.Dockerfile
+    ports:
+      - 27020:27017
+
+  fanout_3_mongo_express:
+    image: mongo-express
+    restart: always
+    ports:
+      - 8084:8081
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+      ME_CONFIG_MONGODB_SERVER: fanout-3-db
+    depends_on:
+      - fanout-3-db
+
+  fanout-3:
+    image: hiroki11hanada/test-2-fanout-3
+    build:
+      context: ./src/fanout-3
+      dockerfile: ../go.Dockerfile
+    environment:
+      LISTEN_PORT: 4000
+      DB_ADDRESS: mongodb://fanout-3-db:27017
+      DB_NAME: test-2
+      COLLECTION_NAME: fanout3
+    ports:
+      - 4004:4000
+    restart: always
+    depends_on:
+      - fanout-3-db
+
+  gateway:
+    image: hiroki11hanada/test-2-gateway
+    build:
+      context: ./src/gateway
+      dockerfile: ../go.Dockerfile
+    environment:
+      LISTEN_PORT: 4000
+      FANOUT_CLIENT_1_ADDRESS: fanout-1:4000
+      FANOUT_CLIENT_2_ADDRESS: fanout-2:4000
+      FANOUT_CLIENT_3_ADDRESS: fanout-3:4000
+    ports:
+      - 4000:4000
+    restart: always

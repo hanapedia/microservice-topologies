@@ -1,4 +1,3 @@
-{% set i = x | int %}
 package main
 
 import (
@@ -8,30 +7,30 @@ import (
 	"os"
   "fmt"
 
-	"{{ go.module_base_path }}/{{ name }}/fanout-{{ i }}/connections/mongo"
-	pb "{{ go.module_base_path }}/{{ name }}/fanout-{{ i }}/pb-fanout-{{ i }}"
+	"github.com/hanapedia/microservice-topologies/test-2/fanout-2/connections/mongo"
+	pb "github.com/hanapedia/microservice-topologies/test-2/fanout-2/pb-fanout-2"
 	"google.golang.org/grpc"
 )
 
-type fanout_{{ i }}Server struct {
-	pb.UnimplementedFanout_{{ i }}Server
+type fanout_2Server struct {
+	pb.UnimplementedFanout_2Server
 }
 
 var mongoConnection *mongo.Mongo
 
 const (
-	ListenPort = "{{ base_service_port + i | int + 1 }}"
+	ListenPort = "4003"
 	DbAddress  = "mongodb://localhost:27017"
-  DbUser = "{{ db.username }}"
-  DbPassword = "{{ db.password }}"
-  DbName = "{{ name }}"
-  CollectionName = "{{ type }}{{ x }}"
+  DbUser = "root"
+  DbPassword = "example"
+  DbName = "test-2"
+  CollectionName = "fanout2"
 )
 
-func (s fanout_{{ i }}Server) GetIds(ctx context.Context, req *pb.Req) (*pb.Res, error) {
+func (s fanout_2Server) GetIds(ctx context.Context, req *pb.Req) (*pb.Res, error) {
 	newId, err := mongoConnection.GetItem(req.Ids[len(req.Ids)-1])
 	if err != nil {
-		log.Printf("Failed to retrieve item at fanout_{{i}}: %v", err)
+		log.Printf("Failed to retrieve item at fanout_2: %v", err)
 	}
 	returnArr := req.Ids
 	returnArr = append(returnArr, newId)
@@ -69,7 +68,7 @@ func main() {
 		collectionName = os.Getenv("COLLECTION_NAME")
 	}
 
-	svc := new(fanout_{{ i }}Server)
+	svc := new(fanout_2Server)
   lis, err := net.Listen("tcp", fmt.Sprintf(":%s", listenPort))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
@@ -78,7 +77,7 @@ func main() {
 	var opts []grpc.ServerOption
 
 	grpcServer := grpc.NewServer(opts...)
-	pb.RegisterFanout_{{ i }}Server(grpcServer, svc)
+	pb.RegisterFanout_2Server(grpcServer, svc)
 
 	mongoConnection, err = mongo.InitMongo(dbAddress, dbUser, dbPassword, dbName, collectionName)
 	if err != nil {

@@ -1,0 +1,15 @@
+# vim: set filetype=yaml.ansible :
+---
+- name: Prepare dockerfile for all services
+  block:
+    - name: Generate dockerfile to regular services
+      ansible.builtin.template:
+        src: go.Dockerfile.j2
+        dest: "./generated/{{ name }}/src/go.Dockerfile"
+        mode: "1777"
+
+    - name: Generate dockerfile to db
+      ansible.builtin.template:
+        src: mongo.Dockerfile.j2
+        dest: "./generated/{{ name }}/src/mongo.Dockerfile"
+        mode: "1777"

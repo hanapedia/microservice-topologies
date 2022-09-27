@@ -7,3 +7,6 @@
   roles:
     - code-gen
     - docker-compose
+    - dockerfile
+    - k8s
+    - save-details

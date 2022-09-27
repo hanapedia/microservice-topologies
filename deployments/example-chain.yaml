@@ -1,0 +1,168 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: test # or fanout
+  labels:
+    istio-injection: enabled
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chain-1
+  labels:
+    name: chain-1
+  namespace: test
+spec:
+  selector:
+    matchLabels:
+      app:  chain-1
+  template:
+    metadata:
+      labels:
+        app: chain-1
+    spec:
+      serviceAccountName: default
+      terminationGracePeriodSeconds: 5
+      containers:
+      - name:  chain-1
+        image: hiroki11hanada/test-chain-1
+        ports:
+        - containerPort: 4000
+        env:
+        - name: LISTEN_PORT
+          value: '4000'
+        - name: CHAIN_NEXT_ADDRESS
+          value: chain_2:4000
+        - name: DB_ADDRESS
+          value: mongodb://chain-1-db:27017
+        - name: DB_NAME
+          value: test
+        - name: COLLECTION_NAME
+          value: chain1
+        resources:
+          requests:
+            cpu: 200m
+            memory: 64Mi
+          limits:
+            cpu: 300m
+            memory: 128Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chain-1
+  annotations:
+        prometheus.io/scrape: 'true'
+  labels:
+    name: chain-1
+  namespace: test
+spec:
+  type: ClusterIP
+  selector:
+    app: chain-1
+  ports:
+  - name: grpc
+    port: 4000
+    targetPort: 4000
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chain-1-db
+  labels:
+    name: chain-1-db
+  namespace: test
+spec:
+  selector:
+    matchLabels:
+      name: chain-1-db
+  template:
+    metadata:
+      labels:
+        name: chain-1-db
+    spec:
+      containers:
+      - name: chain-1-db
+        image: hiroki11hanada/test-chain-1-db
+        ports:
+        - containerPort: 27017
+        env:
+        - name: MONGO_INITDB_ROOT_USERNAME
+          value: root
+        - name: MONGO_INITDB_ROOT_PASSWORD
+          value: example
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chain-1-db
+  annotations:
+        prometheus.io/scrape: 'true'
+  labels:
+    name: chain-1-db
+  namespace: test
+spec:
+  ports:
+  - name: tcp
+    port: 27017
+    targetPort: 27017
+  selector:
+    name: chain-1-db
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  labels:
+    name: gateway
+  namespace: test
+spec:
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+    spec:
+      serviceAccountName: default
+      terminationGracePeriodSeconds: 5
+      containers:
+      - name: gateway
+        image: hiroki11hanada/test-gateway
+        ports:
+        - containerPort: 4000
+        env:
+        - name: LISTEN_PORT
+          value: '4000'
+        - name: CHAIN_NEXT_ADDRESS
+          value: chain-1:4000
+        resources:
+          requests:
+            cpu: 200m
+            memory: 64Mi
+          limits:
+            cpu: 300m
+            memory: 128Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  labels:
+    name: gateway
+  namespace: test
+spec:
+  type: ClusterIP
+  selector:
+    app: gateway
+  ports:
+  - name: grpc
+    port: 4000
+    targetPort: 4000

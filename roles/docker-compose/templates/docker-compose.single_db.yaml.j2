@@ -1,0 +1,64 @@
+version: '3'
+services: 
+  {{ type }}-db:
+    image: {{ docker_hub_user }}/{{ name }}-{{ type }}-db
+    build:
+      context: ./src/{{ type }}-db
+      dockerfile: ../mongo.Dockerfile
+    ports:
+      - {{ base_db_port }}:{{ base_db_port }}
+
+  mongo_express:
+    image: mongo-express
+    restart: always
+    ports:
+      - 8081:8081
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: {{ db.username }}
+      MONGO_INITDB_ROOT_PASSWORD: {{ db.password }}
+      ME_CONFIG_MONGODB_SERVER: {{ type }}-db
+    depends_on:
+      - {{ type }}-db
+
+{% for i in range(1, count | int + 1) %}
+  {{ type }}-{{ i }}:
+    image: {{ docker_hub_user }}/{{ name }}-{{ type }}-{{ i }}
+    build:
+      context: ./src/{{ type }}-{{ i }}
+      dockerfile: ../go.Dockerfile
+    environment:
+      LISTEN_PORT: {{ base_service_port }}
+{% if type == 'chain' %}
+      CHAIN_NEXT_ADDRESS: chain-{{ i | int + 1 }}:{{ base_service_port }}
+{% endif %}
+      DB_ADDRESS: mongodb://{{ type }}-db:{{ base_db_port }}
+      DB_NAME: {{ name }}
+      COLLECTION_NAME: {{ type }}{{ i }}
+    ports:
+      - {{ i | int + base_service_port | int + 1 }}:{{ base_service_port }}
+    restart: always
+    depends_on:
+      - {{ type }}-db
+
+{% endfor %}
+  gateway:
+    image: {{ docker_hub_user }}/{{ name }}-gateway
+    build:
+      context: ./src/gateway
+      dockerfile: ../go.Dockerfile
+    environment:
+      LISTEN_PORT: {{ base_service_port }}
+{% if type == 'chain' %}
+      CHAIN_NEXT_ADDRESS: chain-1:{{ base_service_port }}
+{% elif type == 'fanout' %}
+{% for i in range(1, count | int + 1) %}
+      FANOUT_CLIENT_{{ i }}_ADDRESS: {{ type }}-{{ i }}:{{ base_service_port }}
+{% endfor %}
+{% endif %}
+    ports:
+      - {{ base_service_port }}:{{ base_service_port }}
+    restart: always
+    depends_on: 
+{% for i in range(1, count | int + 1) %}
+      - {{ type }}-{{ i }}
+{% endfor %}

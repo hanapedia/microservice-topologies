@@ -1,0 +1,175 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ name }}
+  labels:
+    istio-injection: enabled
+
+{% for i in range(1, count | int + 1) %}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ type }}-{{ i }}
+  labels:
+    name: {{ type }}-{{ i }}
+  namespace: {{ name }}
+spec:
+  selector:
+    matchLabels:
+      app:  {{ type }}-{{ i }}
+  template:
+    metadata:
+      labels:
+        app: {{ type }}-{{ i }}
+    spec:
+      serviceAccountName: default
+      terminationGracePeriodSeconds: 5
+      containers:
+      - name:  {{ type }}-{{ i }}
+        image: {{ docker_hub_user }}/{{ name }}-{{ type }}-{{ i }}
+        ports:
+        - containerPort: {{ base_service_port }}
+        env:
+        - name: LISTEN_PORT
+          value: '{{ base_service_port }}'
+{% if type == 'chain' %}
+        - name: CHAIN_NEXT_ADDRESS
+          value: chain_{{ i | int + 1}}:{{ base_service_port }}
+{% endif %}
+        - name: DB_ADDRESS
+          value: mongodb://{{ type }}-{{ i }}-db:{{ base_db_port }}
+        - name: DB_NAME
+          value: {{ name }}
+        - name: COLLECTION_NAME
+          value: {{ type }}{{ i }}
+        resources:
+          requests:
+            cpu: 200m
+            memory: 64Mi
+          limits:
+            cpu: 300m
+            memory: 128Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ type }}-{{ i }}
+  annotations:
+        prometheus.io/scrape: 'true'
+  labels:
+    name: {{ type }}-{{ i }}
+  namespace: {{ name }}
+spec:
+  type: ClusterIP
+  selector:
+    app: {{ type }}-{{ i }}
+  ports:
+  - name: grpc
+    port: {{ base_service_port }}
+    targetPort: {{ base_service_port }}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ type }}-{{ i }}-db
+  labels:
+    name: {{ type }}-{{ i }}-db
+  namespace: {{ name }}
+spec:
+  selector:
+    matchLabels:
+      name: {{ type }}-{{ i }}-db
+  template:
+    metadata:
+      labels:
+        name: {{ type }}-{{ i }}-db
+    spec:
+      containers:
+      - name: {{ type }}-{{ i }}-db
+        image: {{ docker_hub_user }}/{{ name }}-{{ type }}-{{ i }}-db
+        ports:
+        - containerPort: {{ base_db_port }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ type }}-{{ i }}-db
+  annotations:
+        prometheus.io/scrape: 'true'
+  labels:
+    name: {{ type }}-{{ i }}-db
+  namespace: {{ name }}
+spec:
+  ports:
+  - name: tcp
+    port: {{ base_db_port }}
+    targetPort: {{ base_db_port }}
+  selector:
+    name: {{ type }}-{{ i }}-db
+
+{% endfor %}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  labels:
+    name: gateway
+  namespace: {{ name }}
+spec:
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+    spec:
+      serviceAccountName: default
+      terminationGracePeriodSeconds: 5
+      containers:
+      - name: gateway
+        image: {{ docker_hub_user }}/{{ name }}-gateway
+        ports:
+        - containerPort: {{ base_service_port }}
+        env:
+        - name: LISTEN_PORT
+          value: '{{ base_service_port }}'
+{% if type == 'chain' %}
+        - name: CHAIN_NEXT_ADDRESS
+          value: chain-1:{{ base_service_port }}
+{% elif type == 'fanout' %}
+{% for i in range(1, count | int + 1) %}
+        - name: FANOUT_CLIENT_{{ i }}_ADDRESS
+          value: fanout-{{ i }}:{{ base_service_port }}
+{% endfor %}
+{% endif %}
+        resources:
+          requests:
+            cpu: 200m
+            memory: 64Mi
+          limits:
+            cpu: 300m
+            memory: 128Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  labels:
+    name: gateway
+  namespace: {{ name }}
+spec:
+  type: ClusterIP
+  selector:
+    app: gateway
+  ports:
+  - name: grpc
+    port: {{ base_service_port }}
+    targetPort: {{ base_service_port }}
+

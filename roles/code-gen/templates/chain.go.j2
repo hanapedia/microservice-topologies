@@ -16,10 +16,10 @@ import (
 	"google.golang.org/grpc/status"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
-	"{{ go.module_base_path }}/{{ name }}/chain_{{ i }}/connections/mongo"
-	pb "{{ go.module_base_path }}/{{ name }}/chain_{{ i }}/pb_chain_{{ i }}"
+	"{{ go.module_base_path }}/{{ name }}/chain-{{ i }}/connections/mongo"
+	pb "{{ go.module_base_path }}/{{ name }}/chain-{{ i }}/pb-chain-{{ i }}"
 {% if count > i %}
-	pbc "{{ go.module_base_path }}/{{ name }}/chain_{{ i }}/pb_chain_{{ i + 1 }}"
+	pbc "{{ go.module_base_path }}/{{ name }}/chain-{{ i }}/pb-chain-{{ i + 1 }}"
 {% endif %}
 )
 
@@ -31,6 +31,8 @@ const (
   ListenPort = "3001"
   ChainNextAddress = "localhost:3002"
   DbAddress = "mongodb://localhost:27017"
+  DbUser = "{{ db.username }}"
+  DbPassword = "{{ db.password }}"
   DbName = "{{ name }}"
   CollectionName = "{{ type }}{{ x }}"
 )
@@ -56,6 +58,14 @@ func main() {
 	if os.Getenv("DB_ADDRESS") != "" {
 		dbAddress = os.Getenv("DB_ADDRESS")
 	}
+	dbUser := DbUser
+	if os.Getenv("DB_USER") != "" {
+		dbUser = os.Getenv("DB_USER")
+	}
+	dbPassword := DbPassword
+	if os.Getenv("DB_PASSWORD") != "" {
+		dbPassword = os.Getenv("DB_PASSWORD")
+	}
 	dbName := DbName
 	if os.Getenv("DB_NAME") != "" {
 		dbName = os.Getenv("DB_NAME")
@@ -75,7 +85,7 @@ func main() {
   pb.RegisterChain_{{ i }}Server(grpcServer, svc)
   healthpb.RegisterHealthServer(grpcServer, svc)
 
-  mongoConnection, err = mongo.InitMongo(dbAddress, dbName, collectionName)
+	mongoConnection, err = mongo.InitMongo(dbAddress, dbUser, dbPassword, dbName, collectionName)
   if err != nil {
     log.Fatalf("failed to connect to mongodb: %v", err)
   }

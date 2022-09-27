@@ -1,0 +1,366 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: test-2
+  labels:
+    istio-injection: enabled
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fanout-1
+  labels:
+    name: fanout-1
+  namespace: test-2
+spec:
+  selector:
+    matchLabels:
+      app:  fanout-1
+  template:
+    metadata:
+      labels:
+        app: fanout-1
+    spec:
+      serviceAccountName: default
+      terminationGracePeriodSeconds: 5
+      containers:
+      - name:  fanout-1
+        image: hiroki11hanada/test-2-fanout-1
+        ports:
+        - containerPort: 4000
+        env:
+        - name: LISTEN_PORT
+          value: '4000'
+        - name: DB_ADDRESS
+          value: mongodb://fanout-1-db:27017
+        - name: DB_NAME
+          value: test-2
+        - name: COLLECTION_NAME
+          value: fanout1
+        resources:
+          requests:
+            cpu: 200m
+            memory: 64Mi
+          limits:
+            cpu: 300m
+            memory: 128Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fanout-1
+  annotations:
+        prometheus.io/scrape: 'true'
+  labels:
+    name: fanout-1
+  namespace: test-2
+spec:
+  type: ClusterIP
+  selector:
+    app: fanout-1
+  ports:
+  - name: grpc
+    port: 4000
+    targetPort: 4000
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fanout-1-db
+  labels:
+    name: fanout-1-db
+  namespace: test-2
+spec:
+  selector:
+    matchLabels:
+      name: fanout-1-db
+  template:
+    metadata:
+      labels:
+        name: fanout-1-db
+    spec:
+      containers:
+      - name: fanout-1-db
+        image: hiroki11hanada/test-2-fanout-1-db
+        ports:
+        - containerPort: 27017
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fanout-1-db
+  annotations:
+        prometheus.io/scrape: 'true'
+  labels:
+    name: fanout-1-db
+  namespace: test-2
+spec:
+  ports:
+  - name: tcp
+    port: 27017
+    targetPort: 27017
+  selector:
+    name: fanout-1-db
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fanout-2
+  labels:
+    name: fanout-2
+  namespace: test-2
+spec:
+  selector:
+    matchLabels:
+      app:  fanout-2
+  template:
+    metadata:
+      labels:
+        app: fanout-2
+    spec:
+      serviceAccountName: default
+      terminationGracePeriodSeconds: 5
+      containers:
+      - name:  fanout-2
+        image: hiroki11hanada/test-2-fanout-2
+        ports:
+        - containerPort: 4000
+        env:
+        - name: LISTEN_PORT
+          value: '4000'
+        - name: DB_ADDRESS
+          value: mongodb://fanout-2-db:27017
+        - name: DB_NAME
+          value: test-2
+        - name: COLLECTION_NAME
+          value: fanout2
+        resources:
+          requests:
+            cpu: 200m
+            memory: 64Mi
+          limits:
+            cpu: 300m
+            memory: 128Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fanout-2
+  annotations:
+        prometheus.io/scrape: 'true'
+  labels:
+    name: fanout-2
+  namespace: test-2
+spec:
+  type: ClusterIP
+  selector:
+    app: fanout-2
+  ports:
+  - name: grpc
+    port: 4000
+    targetPort: 4000
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fanout-2-db
+  labels:
+    name: fanout-2-db
+  namespace: test-2
+spec:
+  selector:
+    matchLabels:
+      name: fanout-2-db
+  template:
+    metadata:
+      labels:
+        name: fanout-2-db
+    spec:
+      containers:
+      - name: fanout-2-db
+        image: hiroki11hanada/test-2-fanout-2-db
+        ports:
+        - containerPort: 27017
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fanout-2-db
+  annotations:
+        prometheus.io/scrape: 'true'
+  labels:
+    name: fanout-2-db
+  namespace: test-2
+spec:
+  ports:
+  - name: tcp
+    port: 27017
+    targetPort: 27017
+  selector:
+    name: fanout-2-db
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fanout-3
+  labels:
+    name: fanout-3
+  namespace: test-2
+spec:
+  selector:
+    matchLabels:
+      app:  fanout-3
+  template:
+    metadata:
+      labels:
+        app: fanout-3
+    spec:
+      serviceAccountName: default
+      terminationGracePeriodSeconds: 5
+      containers:
+      - name:  fanout-3
+        image: hiroki11hanada/test-2-fanout-3
+        ports:
+        - containerPort: 4000
+        env:
+        - name: LISTEN_PORT
+          value: '4000'
+        - name: DB_ADDRESS
+          value: mongodb://fanout-3-db:27017
+        - name: DB_NAME
+          value: test-2
+        - name: COLLECTION_NAME
+          value: fanout3
+        resources:
+          requests:
+            cpu: 200m
+            memory: 64Mi
+          limits:
+            cpu: 300m
+            memory: 128Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fanout-3
+  annotations:
+        prometheus.io/scrape: 'true'
+  labels:
+    name: fanout-3
+  namespace: test-2
+spec:
+  type: ClusterIP
+  selector:
+    app: fanout-3
+  ports:
+  - name: grpc
+    port: 4000
+    targetPort: 4000
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fanout-3-db
+  labels:
+    name: fanout-3-db
+  namespace: test-2
+spec:
+  selector:
+    matchLabels:
+      name: fanout-3-db
+  template:
+    metadata:
+      labels:
+        name: fanout-3-db
+    spec:
+      containers:
+      - name: fanout-3-db
+        image: hiroki11hanada/test-2-fanout-3-db
+        ports:
+        - containerPort: 27017
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fanout-3-db
+  annotations:
+        prometheus.io/scrape: 'true'
+  labels:
+    name: fanout-3-db
+  namespace: test-2
+spec:
+  ports:
+  - name: tcp
+    port: 27017
+    targetPort: 27017
+  selector:
+    name: fanout-3-db
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  labels:
+    name: gateway
+  namespace: test-2
+spec:
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+    spec:
+      serviceAccountName: default
+      terminationGracePeriodSeconds: 5
+      containers:
+      - name: gateway
+        image: hiroki11hanada/test-2-gateway
+        ports:
+        - containerPort: 4000
+        env:
+        - name: LISTEN_PORT
+          value: '4000'
+        - name: FANOUT_CLIENT_1_ADDRESS
+          value: fanout-1:4000
+        - name: FANOUT_CLIENT_2_ADDRESS
+          value: fanout-2:4000
+        - name: FANOUT_CLIENT_3_ADDRESS
+          value: fanout-3:4000
+        resources:
+          requests:
+            cpu: 200m
+            memory: 64Mi
+          limits:
+            cpu: 300m
+            memory: 128Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  labels:
+    name: gateway
+  namespace: test-2
+spec:
+  type: ClusterIP
+  selector:
+    app: gateway
+  ports:
+  - name: grpc
+    port: 4000
+    targetPort: 4000
+

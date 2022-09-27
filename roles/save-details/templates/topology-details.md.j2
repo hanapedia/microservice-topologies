@@ -1,0 +1,5 @@
+# {{ name }}
+type: {{ type }}
+count: {{ count }}
+db instance: {{ 'single' if db.single else 'per-service' }}
+go module path: {{ go.module_base_path }}/{{ name }}

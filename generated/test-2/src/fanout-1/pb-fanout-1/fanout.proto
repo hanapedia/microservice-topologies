@@ -1,0 +1,19 @@
+// This proto contains gRPC definition for fanout 1 service
+syntax = "proto3";
+
+package fanout_1;
+
+option go_package = "github.com/hanapedia/microservice-topologies/fanout/fanout_1/pb_fanout_1";
+
+service fanout_1 {
+  rpc GetIds(Req) returns (Res); 
+  }
+
+message Res {
+    repeated int32 ids = 1;
+  }
+
+message Req {
+    repeated int32 ids = 1;
+  }
+
