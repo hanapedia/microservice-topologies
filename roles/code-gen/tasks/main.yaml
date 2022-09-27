@@ -6,27 +6,27 @@
       block:
         - name: Create directories for each microservice
           ansible.builtin.file:
-            path: "./{{ name }}/{{ type }}_{{ item }}"
+            path: "./generated/{{ name }}/{{ type }}_{{ item }}"
             state: directory
             mode: "1777"
           with_sequence: "start=1 count={{ count }} format=%s"
 
         - name: Create directories for gateway service
           ansible.builtin.file:
-            path: "./{{ name }}/gateway"
+            path: "./generated/{{ name }}/gateway"
             state: directory
             mode: "1777"
 
         - name: Create directories for protocol buffer
           ansible.builtin.file:
-            path: "./{{ name }}/{{ type }}_{{ item }}/pb_{{ type }}_{{ item }}"
+            path: "./generated/{{ name }}/{{ type }}_{{ item }}/pb_{{ type }}_{{ item }}"
             state: directory
             mode: "1777"
           with_sequence: "start=1 count={{ count }} format=%s"
 
         - name: Create directories for mongo code
           ansible.builtin.file:
-            path: "./{{ name }}/{{ type }}_{{ item }}/connections"
+            path: "./generated/{{ name }}/{{ type }}_{{ item }}/connections"
             state: directory
             mode: "1777"
           with_sequence: "start=1 count={{ count }} format=%s"
@@ -34,14 +34,14 @@
         - name: Initialize go modules
           ansible.builtin.command: "go mod init {{ go.module_base_path }}/{{ name }}/{{ type }}_{{ item }}"
           args:
-            chdir: "./{{ name }}/{{ type }}_{{ item }}"
+            chdir: "./generated/{{ name }}/{{ type }}_{{ item }}"
             creates: go.mod
           with_sequence: "start=1 count={{ count }} format=%s"
 
         - name: Initialize go modules
           ansible.builtin.command: "go mod init {{ go.module_base_path }}/{{ name }}/gateway"
           args:
-            chdir: "./{{ name }}/gateway"
+            chdir: "./generated/{{ name }}/gateway"
             creates: go.mod
 
     - name: Prepare source code files
@@ -49,7 +49,7 @@
         - name: Generate proto files from template
           ansible.builtin.template:
             src: "{{ type }}.proto.j2"
-            dest: "./{{ name }}/{{ type }}_{{ item }}/pb_{{ type }}_{{ item }}/{{ type }}.proto"
+            dest: "./generated/{{ name }}/{{ type }}_{{ item }}/pb_{{ type }}_{{ item }}/{{ type }}.proto"
             mode: "1777"
           vars:
             x: "{{ item }}"
@@ -58,7 +58,7 @@
         - name: Generate go files
           ansible.builtin.template:
             src: "{{ type }}.go.j2"
-            dest: "./{{ name }}/{{ type }}_{{ item }}/main.go"
+            dest: "./generated/{{ name }}/{{ type }}_{{ item }}/main.go"
             mode: "1777"
           vars:
             x: "{{ item }}"
@@ -67,7 +67,7 @@
         - name: copy mongo go files
           ansible.builtin.copy:
             src: connections/
-            dest: "./{{ name }}/{{ type }}_{{ item }}/connections/"
+            dest: "./generated/{{ name }}/{{ type }}_{{ item }}/connections/"
             mode: "1777"
           with_sequence: "start=1 count={{ count }} format=%s"
 
@@ -77,8 +77,8 @@
         cmd: "protoc --go_out=. --go_opt=paths=source_relative \
               --go-grpc_out=. --go-grpc_opt=paths=source_relative \
               pb_{{ type }}_{{ item }}/{{ type }}.proto"
-        chdir: "./{{ name }}/{{ type }}_{{ item }}"
-        creates: "./{{ name }}/{{ type }}_{{ item }}/{{ type }}.pb.go"
+        chdir: "./generated/{{ name }}/{{ type }}_{{ item }}"
+        creates: "./generated/{{ name }}/{{ type }}_{{ item }}/{{ type }}.pb.go"
       with_sequence: "start=1 count={{ count }} format=%s"
 
     - name: Copy each of the generated source code files for chain
@@ -86,28 +86,28 @@
       block:
         - name: Ensure that directory for external grpc files exists
           ansible.builtin.file:
-            path: "./{{ name }}/chain_{{ item | int + 1 }}/pb_chain_{{ item | int + 1 }}"
+            path: "./generated/{{ name }}/chain_{{ item | int + 1 }}/pb_chain_{{ item | int + 1 }}"
             state: directory
             mode: "1777"
           with_sequence: "start=1 count={{ count | int - 1 }} format=%s"
 
         - name: Copy generated grpc files
           ansible.builtin.copy:
-            src: "./{{ name }}/chain_{{ item | int + 1 }}/pb_chain_{{ item | int + 1 }}/"
-            dest: "./{{ name }}/chain_{{ item }}/pb_chain_{{ item | int + 1 }}/"
+            src: "./generated/{{ name }}/chain_{{ item | int + 1 }}/pb_chain_{{ item | int + 1 }}/"
+            dest: "./generated/{{ name }}/chain_{{ item }}/pb_chain_{{ item | int + 1 }}/"
             mode: "1777"
           with_sequence: "start=1 count={{ count | int - 1 }} format=%s"
 
         - name: Ensure that directory for external grpc files exists on gateway
           ansible.builtin.file:
-            path: "./{{ name }}/gateway/pb_chain_1"
+            path: "./generated/{{ name }}/gateway/pb_chain_1"
             state: directory
             mode: "1777"
 
         - name: Copy generated grpc files to gateway
           ansible.builtin.copy:
-            src: "./{{ name }}/chain_1/pb_chain_1/"
-            dest: "./{{ name }}/gateway/pb_chain_1/"
+            src: "./generated/{{ name }}/chain_1/pb_chain_1/"
+            dest: "./generated/{{ name }}/gateway/pb_chain_1/"
             mode: "1777"
 
     - name: Copy generated source code files
@@ -115,22 +115,22 @@
       block:
         - name: Ensure that directory for external grpc files exists
           ansible.builtin.file:
-            path: "./{{ name }}/gateway/pb_fanout_{{ item }}"
+            path: "./generated/{{ name }}/gateway/pb_fanout_{{ item }}"
             state: directory
             mode: "1777"
           with_sequence: "start=1 count={{ count }} format=%s"
 
         - name: Copy generated grpc files
           ansible.builtin.copy:
-            src: "./{{ name }}/fanout_{{ item }}/pb_fanout_{{ item }}/"
-            dest: "./{{ name }}/gateway/pb_fanout_{{ item }}/"
+            src: "./generated/{{ name }}/fanout_{{ item }}/pb_fanout_{{ item }}/"
+            dest: "./generated/{{ name }}/gateway/pb_fanout_{{ item }}/"
             mode: "1777"
           with_sequence: "start=1 count={{ count }} format=%s"
 
     - name: Tidy go modules
       ansible.builtin.command: "go mod tidy"
       args:
-        chdir: "./{{ name }}/{{ type }}_{{ item }}"
+        chdir: "./generated/{{ name }}/{{ type }}_{{ item }}"
         creates: go.sum
       with_sequence: "start=1 count={{ count }} format=%s"
 
@@ -140,18 +140,18 @@
           when: "(type) == 'fanout'"
           ansible.builtin.template:
             src: gateway.fanout.go.j2
-            dest: "./{{ name }}/gateway/main.go"
+            dest: "./generated/{{ name }}/gateway/main.go"
             mode: "1777"
 
         - name: Generate go files
           when: "(type) == 'chain'"
           ansible.builtin.template:
             src: gateway.chain.go.j2
-            dest: "./{{ name }}/gateway/main.go"
+            dest: "./generated/{{ name }}/gateway/main.go"
             mode: "1777"
 
         - name: Tidy go modules
           ansible.builtin.command: "go mod tidy"
           args:
-            chdir: "./{{ name }}/gateway"
+            chdir: "./generated/{{ name }}/gateway"
             creates: go.sum

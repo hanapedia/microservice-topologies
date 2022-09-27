@@ -1,6 +1,12 @@
 # Code auto-generation for fanout and chain topologies
 ## Details
 all the connections are gRPC  
+## Usage
+1. Define configuration file in `configs` directory
+2. generate code
+```
+ansible-playbook main.yaml --extra-vars "config_file=name_of_config.yaml"
+```
 
 ## TODO
 1. K8s deployment with skaffold

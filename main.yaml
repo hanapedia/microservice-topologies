@@ -2,6 +2,8 @@
 ---
 - name: Generate code for chain microservice topology
   hosts: localhost
+  vars_files:
+    - "./configs/{{ config_file }}"
   roles:
     - code-gen
     - docker-compose
