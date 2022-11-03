@@ -1,7 +1,0 @@
-db = new Mongo().getDB("test-2")
-db.createCollection("fanout3", { capped: false })
-let entries = []
-for (let i = 0; i <= 50; i++){
-  entries.push({key: i, value: Math.floor(Math.random() * 50)})
-}
-db["fanout3"].insertMany(entries)

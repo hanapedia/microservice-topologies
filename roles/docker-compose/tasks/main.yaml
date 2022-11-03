@@ -47,3 +47,32 @@
             src: docker-compose.yaml.j2
             dest: "./generated/{{ name }}/docker-compose.yaml"
             mode: "1777"
+
+    - name: Prepare resource for loadgenerator
+      block:
+        - name: Prepare directory
+          ansible.builtin.file:
+            path: "./generated/{{ name }}/src/loadgenerator"
+            state: directory
+            mode: '1777'
+
+        - name: Copy files
+          ansible.builtin.copy:
+            src: loadgenerator/
+            dest: "./generated/{{ name }}/src/loadgenerator"
+            mode: '1777'
+
+    - name: Prepare resource for tracing
+      when: tracing
+      block:
+        - name: Prepare directory
+          ansible.builtin.file:
+            path: "./generated/{{ name }}/src/otelcollector"
+            state: directory
+            mode: '1777'
+
+        - name: Copy files for otelcollector
+          ansible.builtin.copy:
+            src: otelcollector/
+            dest: "./generated/{{ name }}/src/otelcollector"
+            mode: '1777'

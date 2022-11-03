@@ -6,19 +6,21 @@ services:
       context: ./src/{{ type }}-db
       dockerfile: ../mongo.Dockerfile
     ports:
-      - {{ base_db_port }}:{{ base_db_port }}
+      - {{ db.base_port }}:{{ db.base_port }}
 
+{% if db.web_ui %}
   mongo_express:
     image: mongo-express
     restart: always
     ports:
-      - 8081:8081
+      - {{ db.web_base_port }}:8081
     environment:
       MONGO_INITDB_ROOT_USERNAME: {{ db.username }}
       MONGO_INITDB_ROOT_PASSWORD: {{ db.password }}
       ME_CONFIG_MONGODB_SERVER: {{ type }}-db
     depends_on:
       - {{ type }}-db
+{% endif %}
 
 {% for i in range(1, count | int + 1) %}
   {{ type }}-{{ i }}:
@@ -31,7 +33,7 @@ services:
 {% if type == 'chain' %}
       CHAIN_NEXT_ADDRESS: chain-{{ i | int + 1 }}:{{ base_service_port }}
 {% endif %}
-      DB_ADDRESS: mongodb://{{ type }}-db:{{ base_db_port }}
+      DB_ADDRESS: mongodb://{{ type }}-db:{{ db.base_port }}
       DB_NAME: {{ name }}
       COLLECTION_NAME: {{ type }}{{ i }}
     ports:
@@ -62,3 +64,26 @@ services:
 {% for i in range(1, count | int + 1) %}
       - {{ type }}-{{ i }}
 {% endfor %}
+
+  loadgenerator:
+    image: {{ docker_hub_user }}/{{ name }}-loadgenerator
+    build:
+      context: ./src/loadgenerator
+    environment:
+      FRONTEND_ADDR: gateway:{{ base_service_port }}
+      USERS: '{{ loadgenerator.users }}'
+      HEADLESS: {{ "--headless" if loadgenerator.headless else ""}}
+{% if not loadgenerator.headless %}
+      WEB_PORT: "--web-port='{{ loadgenerator.web_port }}'"
+    ports:
+      - {{ loadgenerator.web_port }}:{{ loadgenerator.web_port }}
+{% endif %}
+    depends_on:
+      - gateway
+{% if tracing %}
+
+  otelcollector:
+    image: {{ docker_hub_user }}/{{ name }}-otelcollector
+    build:
+      context: ./src/otelcollector
+{% endif %}

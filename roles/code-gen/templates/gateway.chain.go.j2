@@ -10,18 +10,56 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	pb "github.com/hanapedia/microservice-topologies/{{ name }}/gateway/pb-chain-1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+
+{% if tracing %}
+  "go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/propagation"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+
+{% endif %}
+	pb "{{ go_module_base_path }}/{{ name }}/gateway/pb-chain-1"
 )
+
+type gatewayServer struct {
+  chainClient pb.Chain_1Client
+}
 
 const (
   ListenPort = "{{ base_service_port }}"
   ChainNextAddress = "localhost:{{ base_service_port | int + 1}}"
+{% if tracing %}
+  ServerName = "gateway"
+{% endif %}
 )
 
-var chainClient pb.Chain_1Client
+{% if tracing %}
+func InitTracerProvider() *sdktrace.TracerProvider {
+	ctx := context.Background()
 
+	exporter, err := otlptracegrpc.New(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+  // must set
+  // OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+  // OTEL_RESOURCE_ATTRIBUTES
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithBatcher(exporter),
+	)
+	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+	return tp
+}
+
+{% endif %}
 func main() {
 	listenPort := ListenPort
 	if os.Getenv("LISTEN_PORT") != "" {
@@ -31,26 +69,51 @@ func main() {
 	if os.Getenv("CHAIN_NEXT_ADDRESS") != "" {
 		chainNextAddress = os.Getenv("CHAIN_NEXT_ADDRESS")
 	}
-  var opts []grpc.DialOption
-  opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
-  conn, err := grpc.Dial(chainNextAddress, opts...)
+{% if tracing %}
+  serverName := ServerName
+	if os.Getenv("SERVER_NAME") != "" {
+		serverName = os.Getenv("SERVER_NAME")
+	}
+
+	tp := InitTracerProvider()
+	defer func() {
+		if err := tp.Shutdown(context.Background()); err != nil {
+			log.Printf("Error shutting down tracer provider: %v", err)
+		}
+	}()
+
+{% endif %}
+  var opts []grpc.DialOption
+  opts = append(opts, 
+    grpc.WithTransportCredentials(insecure.NewCredentials()),
+{% if tracing %}
+    grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
+    grpc.WithStreamInterceptor(otelgrpc.StreamClientInterceptor()),
+{% endif %}
+    )
+
+  conn, err := grpc.DialContext(context.Background(),chainNextAddress, opts...)
   if err != nil {
     log.Fatalf("Cannot establish connection with the server: %v", err)
   }
   defer conn.Close()
 
-  chainClient = pb.NewChain_1Client(conn)
+  svc := new(gatewayServer)
+  svc.chainClient = pb.NewChain_1Client(conn)
   log.Printf("established connection at %s", chainNextAddress)
 
 
   router := gin.Default()
-  router.GET("/", handler)
+{% if tracing %}
+  router.Use(otelgin.Middleware(serverName))
+{% endif %}
+  router.GET("/ids", svc.handler)
   router.Run(fmt.Sprintf(":%s", listenPort))
 }
 
-func handler(c *gin.Context) {
-  ids, err := chainClient.GetIds(context.Background(), &pb.Req{Ids: []int32{rand.Int31n(50)}})
+func (s gatewayServer) handler(c *gin.Context) {
+  ids, err := s.chainClient.GetIds(c.Request.Context(), &pb.Req{Ids: []int32{rand.Int31n(50)}})
   if err != nil {
     c.JSON(http.StatusBadRequest, gin.H{
       "status": "failed",

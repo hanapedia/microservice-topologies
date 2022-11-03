@@ -18,11 +18,11 @@ metadata:
 spec:
   selector:
     matchLabels:
-      app:  {{ type }}-{{ i }}
+      name:  {{ type }}-{{ i }}
   template:
     metadata:
       labels:
-        app: {{ type }}-{{ i }}
+        name: {{ type }}-{{ i }}
     spec:
       serviceAccountName: default
       terminationGracePeriodSeconds: 5
@@ -36,14 +36,20 @@ spec:
           value: '{{ base_service_port }}'
 {% if type == 'chain' %}
         - name: CHAIN_NEXT_ADDRESS
-          value: chain_{{ i | int + 1}}:{{ base_service_port }}
+          value: chain-{{ i | int + 1}}:{{ base_service_port }}
 {% endif %}
         - name: DB_ADDRESS
-          value: mongodb://{{ type }}-{{ i }}-db:{{ base_db_port }}
+          value: mongodb://{{ type }}-{{ i }}-db:{{ db.base_port }}
         - name: DB_NAME
           value: {{ name }}
         - name: COLLECTION_NAME
           value: {{ type }}{{ i }}
+{% if tracing %}
+        - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+          value: "http://otelcollector.{{ name }}-tracing.svc.cluster.local:4317"
+        - name: OTEL_RESOURCE_ATTRIBUTES
+          value: "service.name={{ type }}-{{ i }},service.version=1.0.0"
+{% endif %}
         resources:
           requests:
             cpu: 200m
@@ -65,7 +71,7 @@ metadata:
 spec:
   type: ClusterIP
   selector:
-    app: {{ type }}-{{ i }}
+    name: {{ type }}-{{ i }}
   ports:
   - name: grpc
     port: {{ base_service_port }}
@@ -92,7 +98,7 @@ spec:
       - name: {{ type }}-{{ i }}-db
         image: {{ docker_hub_user }}/{{ name }}-{{ type }}-{{ i }}-db
         ports:
-        - containerPort: {{ base_db_port }}
+        - containerPort: {{ db.base_port }}
 ---
 apiVersion: v1
 kind: Service
@@ -105,11 +111,12 @@ metadata:
   namespace: {{ name }}
 spec:
   ports:
-  - name: tcp
-    port: {{ base_db_port }}
-    targetPort: {{ base_db_port }}
   selector:
     name: {{ type }}-{{ i }}-db
+  ports:
+  - name: tcp
+    port: {{ db.base_port }}
+    targetPort: {{ db.base_port }}
 
 {% endfor %}
 ---
@@ -123,11 +130,11 @@ metadata:
 spec:
   selector:
     matchLabels:
-      app: gateway
+      name: gateway
   template:
     metadata:
       labels:
-        app: gateway
+        name: gateway
     spec:
       serviceAccountName: default
       terminationGracePeriodSeconds: 5
@@ -148,6 +155,12 @@ spec:
           value: fanout-{{ i }}:{{ base_service_port }}
 {% endfor %}
 {% endif %}
+{% if tracing %}
+        - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+          value: "http://otelcollector.{{ name }}-tracing.svc.cluster.local:4317"
+        - name: OTEL_RESOURCE_ATTRIBUTES
+          value: "service.name=gateway,service.version=1.0.0"
+{% endif %}
         resources:
           requests:
             cpu: 200m
@@ -167,9 +180,9 @@ metadata:
 spec:
   type: ClusterIP
   selector:
-    app: gateway
+    name: gateway
   ports:
-  - name: grpc
+  - name: rest
     port: {{ base_service_port }}
     targetPort: {{ base_service_port }}
 

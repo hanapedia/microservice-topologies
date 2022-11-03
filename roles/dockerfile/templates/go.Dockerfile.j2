@@ -2,7 +2,7 @@ FROM golang:1.19.0 as builder
 WORKDIR /go/src/
 COPY ./ ./
 RUN go get -d -v .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -o app .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o app .
 
 FROM alpine:latest  
 ENV DB_USER={{ db.username }}

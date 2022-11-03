@@ -10,20 +10,32 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 {% if count > i %}
 	"google.golang.org/grpc/credentials/insecure"
 {% endif %}
-	"google.golang.org/grpc/status"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
-	"{{ go.module_base_path }}/{{ name }}/chain-{{ i }}/connections/mongo"
-	pb "{{ go.module_base_path }}/{{ name }}/chain-{{ i }}/pb-chain-{{ i }}"
+{% if tracing %}
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/propagation"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+{% endif %}
+
+	"{{ go_module_base_path }}/{{ name }}/chain-{{ i }}/connections/mongo"
+	pb "{{ go_module_base_path }}/{{ name }}/chain-{{ i }}/pb-chain-{{ i }}"
 {% if count > i %}
-	pbc "{{ go.module_base_path }}/{{ name }}/chain-{{ i }}/pb-chain-{{ i + 1 }}"
+	pbc "{{ go_module_base_path }}/{{ name }}/chain-{{ i }}/pb-chain-{{ i + 1 }}"
 {% endif %}
 )
 
 type chain_{{ i }}Server struct {
+  mongoConnection *mongo.Mongo
+{% if count > i %}
+  nextChain pbc.Chain_{{ i + 1 }}Client
+{% endif %}
 	pb.UnimplementedChain_{{ i }}Server
 }
 
@@ -37,23 +49,39 @@ const (
   CollectionName = "{{ type }}{{ x }}"
 )
 
-var mongoConnection *mongo.Mongo
+{% if tracing %}
+func InitTracerProvider() *sdktrace.TracerProvider {
+	ctx := context.Background()
 
-{% if count > i %}
-var nextChain pbc.Chain_{{ i + 1 }}Client
+	exporter, err := otlptracegrpc.New(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+  // must set
+  // OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+  // OTEL_RESOURCE_ATTRIBUTES
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithBatcher(exporter),
+	)
+	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+	return tp
+}
+
 {% endif %}
-
 func main() {
 	listenPort := ListenPort
 	if os.Getenv("LISTEN_PORT") != "" {
 		listenPort = os.Getenv("LISTEN_PORT")
 	}
-  {% if count > i %}
+{% if count > i %}
 	chainNextAddress := ChainNextAddress
 	if os.Getenv("CHAIN_NEXT_ADDRESS") != "" {
 		chainNextAddress = os.Getenv("CHAIN_NEXT_ADDRESS")
 	}
-  {% endif %}
+{% endif %}
 	dbAddress := DbAddress
 	if os.Getenv("DB_ADDRESS") != "" {
 		dbAddress = os.Getenv("DB_ADDRESS")
@@ -75,69 +103,94 @@ func main() {
 		collectionName = os.Getenv("COLLECTION_NAME")
 	}
 
-  lis, err := net.Listen("tcp", fmt.Sprintf(":%s", listenPort))
-  if err != nil {
-    log.Fatalf("failed to listen: %v", err)
-  }
-  var opts []grpc.ServerOption
-  grpcServer := grpc.NewServer(opts...)
-  svc := new(chain_{{ i }}Server)
-  pb.RegisterChain_{{ i }}Server(grpcServer, svc)
-  healthpb.RegisterHealthServer(grpcServer, svc)
+{% if tracing %}
+	tp := InitTracerProvider()
+	defer func() {
+		if err := tp.Shutdown(context.Background()); err != nil {
+			log.Printf("Error shutting down tracer provider: %v", err)
+		}
+	}()
 
-	mongoConnection, err = mongo.InitMongo(dbAddress, dbUser, dbPassword, dbName, collectionName)
+{% endif %}
+	mongoConnection, err := mongo.InitMongo(dbAddress, dbUser, dbPassword, dbName, collectionName)
   if err != nil {
     log.Fatalf("failed to connect to mongodb: %v", err)
   }
   log.Printf("Established connection with %v", dbAddress)
   defer mongoConnection.Disconnect()
 
-  {% if count > i %}
+{% if count > i %}
   var optsClient []grpc.DialOption
-  optsClient = append(optsClient, grpc.WithTransportCredentials(insecure.NewCredentials()))
+  optsClient = append(optsClient, 
+    grpc.WithTransportCredentials(insecure.NewCredentials()),
+{% if tracing %}
+    grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
+    grpc.WithStreamInterceptor(otelgrpc.StreamClientInterceptor()),
+{% endif %}
+    )
 
-  conn, err := grpc.Dial(chainNextAddress, optsClient...)
+  conn, err := grpc.DialContext(context.Background(), chainNextAddress, optsClient...)
   if err != nil {
     log.Fatalf("Cannot establish connection with the server: %v", err)
   }
   log.Printf("Dialed and established connection with %v", chainNextAddress)
   defer conn.Close()
 
-  nextChain = pbc.NewChain_{{ i + 1 }}Client(conn)
-  {% endif %}
+  nextChain := pbc.NewChain_{{ i + 1 }}Client(conn)
+{% endif %}
+
+  lis, err := net.Listen("tcp", fmt.Sprintf(":%s", listenPort))
+  if err != nil {
+    log.Fatalf("failed to listen: %v", err)
+  }
+  var opts []grpc.ServerOption
+{% if tracing %}
+  opts = append(opts, 
+    grpc.UnaryInterceptor(otelgrpc.UnaryServerInterceptor()),
+    grpc.StreamInterceptor(otelgrpc.StreamServerInterceptor()),
+    )
+{% endif %}
+  grpcServer := grpc.NewServer(opts...)
+  svc := new(chain_{{ i }}Server)
+  svc.mongoConnection = mongoConnection
+{% if count > i %}
+  svc.nextChain = nextChain
+{% endif %}
+  pb.RegisterChain_{{ i }}Server(grpcServer, svc)
+  healthpb.RegisterHealthServer(grpcServer, svc)
 
   log.Printf("Starting server at port %v", listenPort)
   grpcServer.Serve(lis)
 }
 
 func (s chain_{{ i }}Server) GetIds(ctx context.Context, req *pb.Req) (*pb.Res, error) {
-  {% if count > i %}
+{% if count > i %}
   next := new(pbc.Req)
   next.Ids = req.Ids
-  {% endif %}
+{% endif %}
 
   res := new(pb.Res)
   res.Ids = req.Ids
 
-  newId, err := mongoConnection.GetItem(req.Ids[len(req.Ids)-1])
+  newId, err := s.mongoConnection.GetItem(req.Ids[len(req.Ids)-1])
   if err == nil {
-  {% if count > i %}
+{% if count > i %}
     next.Ids = append(next.Ids, newId)
-  {% else %}
+{% else %}
     res.Ids = append(res.Ids, newId)
-  {% endif %}
+{% endif %}
   } else {
     log.Printf("Failed to retrieve item: %v", err)
   }
 
-  {% if count > i %}
-  nextRes, err := nextChain.GetIds(context.Background(), next)
+{% if count > i %}
+  nextRes, err := s.nextChain.GetIds(ctx, next)
   if err == nil {
     res.Ids = nextRes.Ids
   } else {
     log.Printf("Failed to retrieve ids: %v", err)
   }
-  {% endif %}
+{% endif %}
 	return res, err
 }
 

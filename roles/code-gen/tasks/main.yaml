@@ -32,14 +32,14 @@
           with_sequence: "start=1 count={{ count }} format=%s"
 
         - name: Initialize go modules
-          ansible.builtin.command: "go mod init {{ go.module_base_path }}/{{ name }}/{{ type }}-{{ item }}"
+          ansible.builtin.command: "go mod init {{ go_module_base_path }}/{{ name }}/{{ type }}-{{ item }}"
           args:
             chdir: "./generated/{{ name }}/src/{{ type }}-{{ item }}"
             creates: go.mod
           with_sequence: "start=1 count={{ count }} format=%s"
 
         - name: Initialize go modules
-          ansible.builtin.command: "go mod init {{ go.module_base_path }}/{{ name }}/gateway"
+          ansible.builtin.command: "go mod init {{ go_module_base_path }}/{{ name }}/gateway"
           args:
             chdir: "./generated/{{ name }}/src/gateway"
             creates: go.mod
@@ -86,7 +86,7 @@
       block:
         - name: Ensure that directory for external grpc files exists
           ansible.builtin.file:
-            path: "./generated/{{ name }}/chain-{{ item | int + 1 }}/pb-chain-{{ item | int + 1 }}"
+            path: "./generated/{{ name }}/src/chain-{{ item | int + 1 }}/pb-chain-{{ item | int + 1 }}"
             state: directory
             mode: "1777"
           with_sequence: "start=1 count={{ count | int - 1 }} format=%s"

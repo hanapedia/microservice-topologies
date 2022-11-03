@@ -1,7 +1,19 @@
 # vim: set filetype=yaml.ansible :
 ---
-- name: Generate kubernetes manifest for single db
+- name: Generate kubernetes manifest for the app
   ansible.builtin.template:
     src: "kubernetes-manifest{{ '.single_db' if db.single else ''}}.yaml.j2"
     dest: ./generated/{{ name }}/kubernetes-manifest.yaml
+    mode: "1777"
+
+- name: Generate kubernetes manifest for loadgenerator
+  ansible.builtin.template:
+    src: "loadgenerator-manifest.yaml.j2"
+    dest: ./generated/{{ name }}/loadgenerator-manifest.yaml
+    mode: "1777"
+
+- name: Generate kubernetes manifest for tracing
+  ansible.builtin.template:
+    src: "tracing-manifest.yaml.j2"
+    dest: ./generated/{{ name }}/tracing-manifest.yaml
     mode: "1777"

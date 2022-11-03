@@ -3,12 +3,14 @@ docker_hub_user: hiroki11hanada
 type: chain # chain or fanout
 name: test
 count: 1
-go:
-  module_base_path: github.com/hanapedia/microservice-topologies
+go_module_base_path: github.com/hanapedia/microservice-topologies
+base_service_port: 4000
 db:
   single: false
   username: root
   password: example
-base_service_port: 4000
-base_db_port: 27017
-root: true
+  base_port: 27017
+loadgenerator:
+  web_port: 8089
+  users: 10
+  headless: false

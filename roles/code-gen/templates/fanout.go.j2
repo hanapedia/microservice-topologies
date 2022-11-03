@@ -8,16 +8,28 @@ import (
 	"os"
   "fmt"
 
-	"{{ go.module_base_path }}/{{ name }}/fanout-{{ i }}/connections/mongo"
-	pb "{{ go.module_base_path }}/{{ name }}/fanout-{{ i }}/pb-fanout-{{ i }}"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+
+{% if tracing %}
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/propagation"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+{% endif %}
+
+	"{{ go_module_base_path }}/{{ name }}/fanout-{{ i }}/connections/mongo"
+	pb "{{ go_module_base_path }}/{{ name }}/fanout-{{ i }}/pb-fanout-{{ i }}"
 )
 
 type fanout_{{ i }}Server struct {
+  mongoConnection *mongo.Mongo
 	pb.UnimplementedFanout_{{ i }}Server
 }
 
-var mongoConnection *mongo.Mongo
 
 const (
 	ListenPort = "{{ base_service_port + i | int + 1 }}"
@@ -28,21 +40,28 @@ const (
   CollectionName = "{{ type }}{{ x }}"
 )
 
-func (s fanout_{{ i }}Server) GetIds(ctx context.Context, req *pb.Req) (*pb.Res, error) {
-	newId, err := mongoConnection.GetItem(req.Ids[len(req.Ids)-1])
+{% if tracing %}
+func InitTracerProvider() *sdktrace.TracerProvider {
+	ctx := context.Background()
+
+	exporter, err := otlptracegrpc.New(ctx)
 	if err != nil {
-		log.Printf("Failed to retrieve item at fanout_{{i}}: %v", err)
-	}
-	returnArr := req.Ids
-	returnArr = append(returnArr, newId)
-	// Implement db read logic
-	res := pb.Res{
-		Ids: returnArr,
+		log.Fatal(err)
 	}
 
-	return &res, nil
+  // must set
+  // OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+  // OTEL_RESOURCE_ATTRIBUTES
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithBatcher(exporter),
+	)
+	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+	return tp
 }
 
+{% endif %}
 func main() {
 	listenPort := ListenPort
 	if os.Getenv("LISTEN_PORT") != "" {
@@ -69,23 +88,62 @@ func main() {
 		collectionName = os.Getenv("COLLECTION_NAME")
 	}
 
+{% if tracing %}
+  // ADDED
+	tp := InitTracerProvider()
+	defer func() {
+		if err := tp.Shutdown(context.Background()); err != nil {
+			log.Printf("Error shutting down tracer provider: %v", err)
+		}
+	}()
+{% endif %}
+
+	mongoConnection, err := mongo.InitMongo(dbAddress, dbUser, dbPassword, dbName, collectionName)
+	if err != nil {
+		log.Fatalf("failed to connect to mongodb: %v", err)
+	}
+	defer mongoConnection.Disconnect()
+
 	svc := new(fanout_{{ i }}Server)
+  svc.mongoConnection = mongoConnection
   lis, err := net.Listen("tcp", fmt.Sprintf(":%s", listenPort))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
 	var opts []grpc.ServerOption
-
+{% if tracing %}
+  opts = append(opts, 
+    grpc.UnaryInterceptor(otelgrpc.UnaryServerInterceptor()),
+    grpc.StreamInterceptor(otelgrpc.StreamServerInterceptor()),
+    )
+{% endif %}
 	grpcServer := grpc.NewServer(opts...)
 	pb.RegisterFanout_{{ i }}Server(grpcServer, svc)
-
-	mongoConnection, err = mongo.InitMongo(dbAddress, dbUser, dbPassword, dbName, collectionName)
-	if err != nil {
-		log.Fatalf("failed to connect to mongodb: %v", err)
-	}
-	defer mongoConnection.Disconnect()
+  healthpb.RegisterHealthServer(grpcServer, svc)
 
 	grpcServer.Serve(lis)
 }
 
+func (s fanout_{{ i }}Server) GetIds(ctx context.Context, req *pb.Req) (*pb.Res, error) {
+	newId, err := s.mongoConnection.GetItem(req.Ids[len(req.Ids)-1])
+	if err != nil {
+		log.Printf("Failed to retrieve item at fanout_{{i}}: %v", err)
+	}
+	returnArr := req.Ids
+	returnArr = append(returnArr, newId)
+	// Implement db read logic
+	res := pb.Res{
+		Ids: returnArr,
+	}
+
+	return &res, nil
+}
+
+func (s fanout_{{ i }}Server) Check(ctx context.Context, req *healthpb.HealthCheckRequest) (*healthpb.HealthCheckResponse, error) {
+	return &healthpb.HealthCheckResponse{Status: healthpb.HealthCheckResponse_SERVING}, nil
+}
+
+func (s fanout_{{ i }}Server) Watch(req *healthpb.HealthCheckRequest, ws healthpb.Health_WatchServer) error {
+	return status.Errorf(codes.Unimplemented, "health check via Watch not implemented")
+}
