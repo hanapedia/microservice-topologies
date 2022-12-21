@@ -1,0 +1,22 @@
+---
+docker_hub_user: hiroki11hanada
+type: fanout # chain or fanout
+name: tracing-example-app
+count: 5
+go_module_base_path: github.com/hanapedia/microservice-topologies
+base_service_port: 4000
+tracing:
+  enabled: true
+  collector_endpoint: http://otelcollector-collector.observability.svc.cluster.local:4317
+  with_collector: false
+db:
+  single: true
+  username: root
+  password: example
+  base_port: 27017
+  web_ui: false
+  web_base_port: 8081
+loadgenerator:
+  web_port: 8089
+  users: 10
+  headless: true

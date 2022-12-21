@@ -85,9 +85,13 @@ spec:
           value: {{ name }}
         - name: COLLECTION_NAME
           value: {{ type }}{{ i }}
-{% if tracing %}
+{% if tracing.enabled %}
         - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+{% if tracing.with_collector %}
           value: "http://otelcollector.{{ name }}-tracing.svc.cluster.local:4317"
+{% else %}
+          value: {{ tracing.collector_endpoint }}
+{% endif %}
         - name: OTEL_RESOURCE_ATTRIBUTES
           value: "service.name={{ type }}-{{ i }},service.version=1.0.0"
 {% endif %}
@@ -155,9 +159,13 @@ spec:
           value: fanout-{{ i }}:{{ base_service_port }}
 {% endfor %}
 {% endif %}
-{% if tracing %}
+{% if tracing.enabled %}
         - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+{% if tracing.with_collector %}
           value: "http://otelcollector.{{ name }}-tracing.svc.cluster.local:4317"
+{% else %}
+          value: {{ tracing.collector_endpoint }}
+{% endif %}
         - name: OTEL_RESOURCE_ATTRIBUTES
           value: "service.name=gateway,service.version=1.0.0"
 {% endif %}

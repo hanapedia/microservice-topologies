@@ -13,6 +13,7 @@
     mode: "1777"
 
 - name: Generate kubernetes manifest for tracing
+  when: tracing.enabled and tracing.with_collector
   ansible.builtin.template:
     src: "tracing-manifest.yaml.j2"
     dest: ./generated/{{ name }}/tracing-manifest.yaml

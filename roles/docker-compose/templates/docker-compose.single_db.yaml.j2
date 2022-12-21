@@ -80,7 +80,7 @@ services:
 {% endif %}
     depends_on:
       - gateway
-{% if tracing %}
+{% if tracing.enabled and tracing.with_collector %}
 
   otelcollector:
     image: {{ docker_hub_user }}/{{ name }}-otelcollector

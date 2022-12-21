@@ -12,7 +12,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-{% if tracing %}
+{% if tracing.enabled %}
   "go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 
@@ -29,7 +29,7 @@ import (
 
 const (
 	ListenPort           = "{{ base_service_port }}"
-{% if tracing %}
+{% if tracing.enabled %}
   ServerName = "gateway"
 {% endif %}
 {% for i in range(1, count | int + 1) %}
@@ -43,7 +43,7 @@ type gatewayServer struct {
 {% endfor %}
 }
 
-{% if tracing %}
+{% if tracing.enabled %}
 func InitTracerProvider() *sdktrace.TracerProvider {
 	ctx := context.Background()
 
@@ -76,7 +76,7 @@ func main() {
 		fanoutClient{{ i }}Address = os.Getenv("FANOUT_CLIENT_{{ i }}_ADDRESS")
 	}
 {% endfor %}
-{% if tracing %}
+{% if tracing.enabled %}
   serverName := ServerName
 	if os.Getenv("SERVER_NAME") != "" {
 		serverName = os.Getenv("SERVER_NAME")
@@ -93,7 +93,7 @@ func main() {
 	var optsClient []grpc.DialOption
   optsClient = append(optsClient, 
     grpc.WithTransportCredentials(insecure.NewCredentials()),
-{% if tracing %}
+{% if tracing.enabled %}
     grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
     grpc.WithStreamInterceptor(otelgrpc.StreamClientInterceptor()),
 {% endif %}
@@ -114,7 +114,7 @@ func main() {
 
 {% endfor %}
   router := gin.Default()
-{% if tracing %}
+{% if tracing.enabled %}
   router.Use(otelgin.Middleware(serverName))
 {% endif %}
   router.GET("/ids", svc.handler)

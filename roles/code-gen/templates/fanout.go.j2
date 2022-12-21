@@ -13,7 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
-{% if tracing %}
+{% if tracing.enabled %}
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
@@ -40,7 +40,7 @@ const (
   CollectionName = "{{ type }}{{ x }}"
 )
 
-{% if tracing %}
+{% if tracing.enabled %}
 func InitTracerProvider() *sdktrace.TracerProvider {
 	ctx := context.Background()
 
@@ -88,7 +88,7 @@ func main() {
 		collectionName = os.Getenv("COLLECTION_NAME")
 	}
 
-{% if tracing %}
+{% if tracing.enabled %}
   // ADDED
 	tp := InitTracerProvider()
 	defer func() {
@@ -112,7 +112,7 @@ func main() {
 	}
 
 	var opts []grpc.ServerOption
-{% if tracing %}
+{% if tracing.enabled %}
   opts = append(opts, 
     grpc.UnaryInterceptor(otelgrpc.UnaryServerInterceptor()),
     grpc.StreamInterceptor(otelgrpc.StreamServerInterceptor()),

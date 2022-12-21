@@ -63,7 +63,7 @@
             mode: '1777'
 
     - name: Prepare resource for tracing
-      when: tracing
+      when: tracing.enabled and tracing.with_collector
       block:
         - name: Prepare directory
           ansible.builtin.file:
