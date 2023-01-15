@@ -1,10 +1,14 @@
 ---
 docker_hub_user: hiroki11hanada
-type: chain # chain or fanout
-name: chc5
-count: 5
+type: fanout # chain or fanout
+name: foc10
+count: 10
 go_module_base_path: github.com/hanapedia/microservice-topologies
 base_service_port: 4000
+tracing:
+  enabled: true
+  collector_endpoint: http://otelcollector-collector.observability.svc.cluster.local:4317
+  with_collector: false
 db:
   single: false
   username: root

@@ -1,37 +1,35 @@
 # vim: set filetype=yaml.ansible :
 ---
-- name: Generate code for chain microservice topology
+- name: Generate code for chain and fanout microservice topology
   hosts: localhost
   vars:
     generate: true
     configs:
-      - chc5s-tr
-      - foc5s-tr
-      # - chc5
       # - chc5s
-      # - foc5
-      # - foc5s
-      # - chc10
       # - chc10s
-      # - chc15
       # - chc15s
-      # - foc10
+      # - foc5s
       # - foc10s
-      # - foc15
       # - foc15s
+      - chc5
+      - chc10
+      - chc15
+      - foc5
+      - foc10
+      - foc15
     build_image: true
   tasks:
     - name: Call the playbooks with multiple configs # configs must have same file name and name field
       when: generate
       changed_when: true
-      with_items: "{{ configs }}"
+      loop: "{{ configs }}"
       ansible.builtin.command:
-        cmd: "ansible-playbook main.yaml --extra-vars 'config_file={{ item }}'"
+        cmd: "ansible-playbook main.yaml --extra-vars '@./configs/tracing/{{ item }}.yaml'"
 
     - name: Docker compose build and push
       when: build_image
       changed_when: true
-      with_items: "{{ configs }}"
+      loop: "{{ configs }}"
       ansible.builtin.shell:
         chdir: "./generated/{{ item }}"
         cmd: "docker-compose build && docker-compose push"
